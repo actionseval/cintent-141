@@ -1,0 +1,57 @@
+name: CI
+
+# CINTENT >> MANUAL TRIGGER
+# on: [push, pull_request]
+on: [repository_dispatch, workflow_dispatch]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_and_build:
+    name: ${{ matrix.os }}_py${{ matrix.python_version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # CINTENT >> UNSUPPORTED_OS
+        # os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
+
+        # CINTENT >> REMOVE_MATRIX
+        # python_version: ["3.9", "3.10", "3.11", "3.12"]
+        python_version: ["3.12"]
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # CINTENT >> INSERT_CINTENT
+      - uses: JavidDitty/setup-cintent@a606c80c34ec190c6a20dea33d6d58ddb6c4e0cc
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: av2
+          conda-remove-defaults: true
+          environment-file: conda/environment.yml
+          mamba-version: "*"
+          miniforge-version: latest
+          python-version: ${{ matrix.python_version }}
+
+      - name: Build `av2`.
+        run: |
+          maturin develop --extras test
+          
+      - name: Run `pytest`.
+        run: |
+          pytest tests --cov src/av2
+
+      # CINTENT >> INSERT_CINTENT
+      - name: Upload CIntent Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ env.CINTENT_ARTIFACT_NAME }}
+          path: ${{ env.CINTENT_LOGS }}
